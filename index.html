@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clasificador de botellas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --peach: #F4B398;
+      --peach-light: #F9C9B2;
+      --cream: #F4F0E8;
+      --muted: #9D968D;
+      --muted-2: #7F7972;
+      --window: #211F1D;
+      --line: rgba(244, 240, 232, .08);
+      --card: rgba(255, 255, 255, .045);
+      --font: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      font-family: var(--font);
+      color: var(--cream);
+      background: #0C0B0A;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- Ventana ---------- */
+    .window {
+      position: relative;
+      width: 100%;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(70% 55% at 0% 0%, rgba(90, 184, 184, .13), transparent 65%),
+        radial-gradient(60% 50% at 100% 100%, rgba(244, 179, 152, .05), transparent 70%),
+        linear-gradient(180deg, rgba(38, 37, 34, .93), rgba(28, 27, 25, .96));
+      overflow: hidden;
+    }
+
+    /* ---------- Contenido ---------- */
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px 28px;
+    }
+    .top-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(340px, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    /* ---------- Cámara ---------- */
+    .camera-card {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      border-radius: 20px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, .035);
+      border: 1px solid rgba(255, 255, 255, .08);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+    }
+    .viewport {
+      position: relative;
+      flex: 1;
+      min-height: 320px;
+      background: #141312;
+      overflow: hidden;
+    }
+    .webcam {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity .3s ease;
+      z-index: 1;
+    }
+    .webcam.visible { opacity: 1; }
+    .webcam canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain;
+      background: #0E0D0C;
+    }
+    .preview {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #0E0D0C;
+      z-index: 1;
+    }
+    .placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 24px;
+      text-align: center;
+      z-index: 1;
+    }
+    .ph-icon {
+      width: 56px;
+      height: 56px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--peach);
+      background: rgba(244, 179, 152, .08);
+      border: 1px solid rgba(244, 179, 152, .22);
+      box-shadow: 0 0 40px rgba(244, 179, 152, .08);
+      margin-bottom: 2px;
+    }
+    .placeholder h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: #E9E3DA;
+    }
+    .placeholder p {
+      margin: 0;
+      max-width: 300px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+    .vignette {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background: radial-gradient(120% 120% at 50% 40%, transparent 55%, rgba(0, 0, 0, .38) 100%);
+    }
+    .scan {
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      top: 50%;
+      height: 1px;
+      z-index: 3;
+      opacity: 0;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, rgba(244, 179, 152, .7), transparent);
+      box-shadow: 0 0 12px rgba(244, 179, 152, .35);
+    }
+    .camera-card.is-live .scan {
+      animation: scan 5s ease-in-out infinite;
+    }
+    .chips {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      z-index: 4;
+      pointer-events: none;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(20, 19, 18, .55);
+      border: 1px solid rgba(255, 255, 255, .12);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #E8E2D8;
+    }
+    .chip-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #7ED9A8;
+      box-shadow: 0 0 8px rgba(126, 217, 168, .8);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    .chip.is-image .chip-dot {
+      background: #8FD6D2;
+      box-shadow: 0 0 8px rgba(143, 214, 210, .7);
+      animation: none;
+    }
+    .camera-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 12px;
+      background: rgba(255, 255, 255, .02);
+      border-top: 1px solid rgba(255, 255, 255, .06);
+    }
+    .btn {
+      appearance: none;
+      border: 0;
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 700;
+      padding: 9px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s ease, transform .15s ease, opacity .15s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary {
+      background: linear-gradient(180deg, #F9C9B2, #F4B398);
+      color: #241C17;
+      box-shadow: 0 6px 18px rgba(244, 179, 152, .18);
+    }
+    .btn.primary:hover:not(:disabled) {
+      background: linear-gradient(180deg, #FBD3BF, #F6BCA4);
+    }
+    .btn.ghost {
+      background: rgba(255, 255, 255, .05);
+      color: #E4DED5;
+      border: 1px solid rgba(255, 255, 255, .08);
+    }
+    .btn.ghost:hover:not(:disabled) { background: rgba(255, 255, 255, .08); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    #uploadBtn { margin-left: auto; }
+
+    /* ---------- Columna lateral ---------- */
+    .side-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+    .prediction-card {
+      position: relative;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 9px;
+      padding: 14px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .025));
+      border: 1px solid rgba(255, 255, 255, .08);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+      overflow: hidden;
+    }
+    .prediction-card::after {
+      content: "";
+      position: absolute;
+      right: -60px;
+      top: -60px;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(244, 179, 152, .12), transparent 70%);
+      pointer-events: none;
+    }
+    .pred-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .eyebrow {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .pred-state {
+      font-size: 11px;
+      color: var(--muted-2);
+      white-space: nowrap;
+    }
+    .pred-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 14px;
+    }
+    .pred-label {
+      display: block;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      color: var(--muted-2);
+      margin-bottom: 3px;
+    }
+    .pred-class {
+      font-size: clamp(22px, 2.4vw, 32px);
+      font-weight: 800;
+      letter-spacing: -.03em;
+      line-height: 1.04;
+      color: #F6F1E9;
+      overflow-wrap: anywhere;
+    }
+    .pred-value {
+      font-size: clamp(40px, 4.4vw, 56px);
+      font-weight: 800;
+      letter-spacing: -.05em;
+      line-height: .9;
+      text-align: right;
+      white-space: nowrap;
+      color: #F6F1E9;
+    }
+    .pred-value .unit {
+      font-size: .4em;
+      font-weight: 600;
+      color: var(--muted);
+      margin-left: 4px;
+      letter-spacing: 0;
+    }
+    .pred-bar {
+      height: 3px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, .08);
+      overflow: hidden;
+    }
+    .pred-bar span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--cream), var(--peach), #8FD6D2);
+      transition: width .25s ease;
+    }
+    .pred-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, .06);
+      font-size: 11px;
+      color: var(--muted-2);
+    }
+    .pred-meta strong { color: #D8D1C7; font-weight: 700; }
+
+    /* ---------- Tabs ---------- */
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      width: fit-content;
+      max-width: 100%;
+      padding: 3px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .035);
+      border: 1px solid rgba(255, 255, 255, .055);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: background .15s ease, color .15s ease;
+    }
+    .tab:hover { color: #E6E0D7; }
+    .tab.active {
+      background: rgba(255, 255, 255, .10);
+      color: #F6F1E9;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+    }
+    .tab .count {
+      min-width: 16px;
+      padding: 1px 5px;
+      border-radius: 99px;
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--muted-2);
+      background: rgba(255, 255, 255, .06);
+    }
+    .tab.active .count {
+      color: #241C17;
+      background: var(--peach);
+    }
+
+    /* ---------- Lista de clases ---------- */
+    .class-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .class-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 92px;
+      align-items: center;
+      gap: 12px;
+      padding: 5px 12px;
+      border-radius: 12px;
+      transition: background .15s ease, box-shadow .15s ease;
+    }
+    .class-row:hover { background: rgba(255, 255, 255, .025); }
+    .class-row.is-top {
+      background: rgba(255, 255, 255, .045);
+      box-shadow: inset 2px 0 0 var(--peach);
+    }
+    .class-row.is-hidden { display: none; }
+    .row-info {
+      display: flex;
+      flex-direction: row;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+    .row-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: -.01em;
+      color: #EDE7DE;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .row-sub {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted-2);
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+    .row-sub .sep {
+      width: 2px;
+      height: 2px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: .6;
+    }
+    .row-prob { font-weight: 700; color: #CFC7BC; }
+    .class-row.is-top .row-prob { color: var(--peach); }
+    .meter { min-width: 0; }
+    .dots {
+      position: relative;
+      height: 18px;
+      border-radius: 7px;
+      overflow: hidden;
+      background-image: radial-gradient(circle, rgba(244, 240, 232, .13) 1.3px, transparent 1.5px);
+      background-size: 9px 9px;
+      background-position: 0 0;
+    }
+    .dots::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image: radial-gradient(circle, rgba(244, 179, 152, .16) 1px, transparent 1.2px);
+      background-size: 18px 18px;
+      background-position: 4px 5px;
+    }
+    .dots-fill {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, #F6EFDF 0%, #F4B398 55%, #8FD6D2 100%);
+      -webkit-mask-image: radial-gradient(circle, #000 1.4px, transparent 1.6px);
+      mask-image: radial-gradient(circle, #000 1.4px, transparent 1.6px);
+      -webkit-mask-size: 9px 9px;
+      mask-size: 9px 9px;
+      -webkit-mask-position: 0 0;
+      mask-position: 0 0;
+      clip-path: inset(0 calc(100% - var(--p, 0%)) 0 0);
+      transition: clip-path .3s ease;
+    }
+
+    /* ---------- Banner de error y pie ---------- */
+    .error-banner {
+      padding: 11px 14px;
+      border-radius: 12px;
+      background: rgba(224, 122, 106, .12);
+      border: 1px solid rgba(224, 122, 106, .28);
+      color: #F4C9C2;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .app-footer {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, .06);
+      font-size: 10.5px;
+      color: var(--muted-2);
+      letter-spacing: .02em;
+    }
+    /* ---------- Animaciones ---------- */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .35; }
+    }
+    @keyframes scan {
+      0% { top: 6%; opacity: 0; }
+      12% { opacity: .45; }
+      88% { opacity: .45; }
+      100% { top: 94%; opacity: 0; }
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 1250px) and (min-width: 901px) {
+      .tab { font-size: 11px; padding: 5px 8px; }
+      .tab .count { min-width: 14px; padding: 1px 4px; }
+    }
+    @media (max-width: 900px) {
+      .top-grid { flex: none; grid-template-columns: 1fr; }
+      .viewport { flex: none; aspect-ratio: 16 / 10; min-height: 0; }
+      .prediction-card { min-height: 220px; }
+    }
+    @media (max-width: 640px) {
+      .viewport { aspect-ratio: 4 / 3; }
+      .tab { font-size: 11px; padding: 5px 8px; }
+      .tab .count { min-width: 14px; padding: 1px 4px; }
+      .content { padding: 14px; gap: 12px; }
+      .pred-class { font-size: 26px; }
+      .pred-value { font-size: 44px; }
+      .class-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 10px 12px;
+      }
+      .row-name { white-space: normal; }
+      .dots { height: 24px; }
+      .app-footer { flex-wrap: wrap; }
+      #uploadBtn { margin-left: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="window">
+    <div class="content">
+      <div class="error-banner" id="errorBanner" role="alert" hidden></div>
+
+      <div class="top-grid">
+        <section class="camera-card" id="cameraCard" aria-label="Cámara">
+          <div class="viewport">
+            <div class="placeholder" id="placeholder">
+              <div class="ph-icon">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14" />
+                  <rect x="3" y="6" width="12" height="12" rx="3" />
+                </svg>
+              </div>
+              <h2>Cámara apagada</h2>
+              <p>Inicia la cámara para clasificar botellas en tiempo real, o sube una imagen.</p>
+            </div>
+
+            <div class="webcam" id="webcam-container"></div>
+            <img class="preview" id="preview" alt="Imagen lista para clasificar" hidden />
+            <div class="vignette"></div>
+            <div class="scan"></div>
+
+            <div class="chips">
+              <span class="chip" id="liveChip" hidden>
+                <span class="chip-dot"></span>
+                <span id="liveChipText">En vivo</span>
+              </span>
+              <span class="chip">224 × 224</span>
+            </div>
+          </div>
+
+          <div class="camera-controls">
+            <button id="startBtn" class="btn primary" type="button">Iniciar cámara</button>
+            <button id="stopBtn" class="btn ghost" type="button" disabled>Detener</button>
+            <button id="uploadBtn" class="btn ghost" type="button">Subir imagen</button>
+            <input id="fileInput" type="file" accept="image/*" hidden />
+          </div>
+        </section>
+
+        <aside class="side-col">
+          <section class="prediction-card" aria-label="Predicción actual">
+            <div class="pred-head">
+              <span class="eyebrow">Predicción actual</span>
+              <span class="pred-state" id="predState">Sin señal</span>
+            </div>
+
+            <div class="pred-main">
+              <div>
+                <span class="pred-label">Clase</span>
+                <div class="pred-class" id="topClass">—</div>
+              </div>
+              <div>
+                <span class="pred-label" style="text-align:right">Confianza</span>
+                <div class="pred-value"><span id="topConf">0</span><span class="unit">%</span></div>
+              </div>
+            </div>
+
+            <div class="pred-bar"><span id="topBar"></span></div>
+
+            <div class="pred-meta">
+              <span>Modelo <strong>MobileNet</strong></span>
+              <span><strong>6</strong> clases</span>
+            </div>
+          </section>
+
+          <nav class="tabs" id="tabs" aria-label="Filtrar clases"></nav>
+
+          <section class="class-list" id="classList" aria-label="Probabilidades por clase"></section>
+        </aside>
+      </div>
+
+      <footer class="app-footer">
+        <span>Modelo de Teachable Machine</span>
+      </footer>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+  <script type="text/javascript">
+    const MODEL_URL = "./my_model/";
+
+    const CLASSES = [
+      { name: "Etiqueta normal",    cat: "good",    catLabel: "Buen estado" },
+      { name: "Etiqueta caida",     cat: "defect",  catLabel: "Defecto" },
+      { name: "Sin etiqueta",       cat: "missing", catLabel: "Faltante" },
+      { name: "Sin tapa",           cat: "missing", catLabel: "Faltante" },
+      { name: "Botella golpeada",   cat: "defect",  catLabel: "Defecto" },
+      { name: "Botella aplastada",  cat: "defect",  catLabel: "Defecto" }
+    ];
+
+    const CATEGORIES = [
+      { id: "all",     label: "Todas" },
+      { id: "good",    label: "Buenas" },
+      { id: "defect",  label: "Defectos" },
+      { id: "missing", label: "Faltantes" }
+    ];
+
+    const els = {
+      predState: document.getElementById("predState"),
+      topClass: document.getElementById("topClass"),
+      topConf: document.getElementById("topConf"),
+      topBar: document.getElementById("topBar"),
+      cameraCard: document.getElementById("cameraCard"),
+      placeholder: document.getElementById("placeholder"),
+      webcamContainer: document.getElementById("webcam-container"),
+      preview: document.getElementById("preview"),
+      liveChip: document.getElementById("liveChip"),
+      liveChipText: document.getElementById("liveChipText"),
+      startBtn: document.getElementById("startBtn"),
+      stopBtn: document.getElementById("stopBtn"),
+      uploadBtn: document.getElementById("uploadBtn"),
+      fileInput: document.getElementById("fileInput"),
+      tabs: document.getElementById("tabs"),
+      classList: document.getElementById("classList"),
+      errorBanner: document.getElementById("errorBanner")
+    };
+
+    let model = null;
+    let modelPromise = null;
+    let webcam = null;
+    let running = false;
+    let rafId = null;
+    let lastPredict = 0;
+    let activeFilter = "all";
+    const rowEls = new Map();
+
+    function errorText(error) {
+      return error && error.message ? error.message : String(error);
+    }
+
+    function setStatus(state, text, predText) {
+      els.predState.textContent = predText || text;
+    }
+
+    function hideError() {
+      els.errorBanner.hidden = true;
+      els.errorBanner.textContent = "";
+    }
+
+    function showError(error) {
+      console.error(error);
+      let message = errorText(error);
+      if (message.indexOf("WebRTC") !== -1) {
+        message = "Tu navegador no permite acceder a la cámara. Abre la página desde HTTPS o localhost y revisa los permisos del navegador.";
+      }
+      els.errorBanner.textContent = message;
+      els.errorBanner.hidden = false;
+      setStatus("error", "Error", "Error");
+    }
+
+    /* ---------- Tabs y filas ---------- */
+    function buildTabs() {
+      els.tabs.innerHTML = "";
+      CATEGORIES.forEach((cat) => {
+        const count = cat.id === "all"
+          ? CLASSES.length
+          : CLASSES.filter((c) => c.cat === cat.id).length;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tab" + (cat.id === activeFilter ? " active" : "");
+        btn.dataset.filter = cat.id;
+        btn.innerHTML = cat.label + ' <span class="count">' + count + "</span>";
+        btn.addEventListener("click", () => setFilter(cat.id));
+        els.tabs.appendChild(btn);
+      });
+    }
+
+    function buildRows() {
+      els.classList.innerHTML = "";
+      rowEls.clear();
+      CLASSES.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "class-row";
+        row.dataset.cat = item.cat;
+        row.dataset.cls = item.name;
+        row.innerHTML =
+          '<div class="row-info">' +
+            '<span class="row-name">' + item.name + "</span>" +
+            '<span class="row-sub"><span>' + item.catLabel + "</span>" +
+              '<span class="sep"></span><span class="row-prob">0%</span></span>' +
+          "</div>" +
+          '<div class="meter"><div class="dots">' +
+            '<div class="dots-fill" style="--p:0%"></div>' +
+          "</div></div>";
+        els.classList.appendChild(row);
+        rowEls.set(item.name, {
+          row: row,
+          prob: row.querySelector(".row-prob"),
+          fill: row.querySelector(".dots-fill")
+        });
+      });
+    }
+
+    function setFilter(id) {
+      activeFilter = id;
+      els.tabs.querySelectorAll(".tab").forEach((tab) => {
+        tab.classList.toggle("active", tab.dataset.filter === id);
+      });
+      els.classList.querySelectorAll(".class-row").forEach((row) => {
+        const show = id === "all" || row.dataset.cat === id;
+        row.classList.toggle("is-hidden", !show);
+      });
+    }
+
+    function resetPredictions() {
+      els.topClass.textContent = "—";
+      els.topConf.textContent = "0";
+      els.topBar.style.width = "0%";
+      rowEls.forEach((item) => {
+        item.row.classList.remove("is-top");
+        item.prob.textContent = "0%";
+        item.fill.style.setProperty("--p", "0%");
+      });
+    }
+
+    function updatePredictions(prediction) {
+      let top = null;
+      prediction.forEach((p, index) => {
+        const item = rowEls.get(p.className) ||
+          (CLASSES[index] ? rowEls.get(CLASSES[index].name) : null);
+        if (!item) return;
+        const pct = Math.round(p.probability * 100);
+        item.prob.textContent = pct + "%";
+        item.fill.style.setProperty("--p", pct + "%");
+        item.row.classList.remove("is-top");
+        if (!top || p.probability > top.probability) top = p;
+      });
+
+      if (!top) return;
+      const topItem = rowEls.get(top.className) ||
+        (CLASSES[prediction.indexOf(top)] ? rowEls.get(CLASSES[prediction.indexOf(top)].name) : null);
+      if (topItem) topItem.row.classList.add("is-top");
+
+      const pct = Math.round(top.probability * 100);
+      els.topClass.textContent = top.className;
+      els.topConf.textContent = pct;
+      els.topBar.style.width = pct + "%";
+    }
+
+    /* ---------- Modelo ---------- */
+    function ensureModel(silent) {
+      if (model) return Promise.resolve(model);
+      if (modelPromise) return modelPromise;
+      if (typeof tf === "undefined" || typeof tmImage === "undefined") {
+        return Promise.reject(new Error("No se pudieron cargar las librerías de TensorFlow.js. Comprueba tu conexión a internet."));
+      }
+      if (!silent) setStatus("loading", "Cargando modelo…", "Cargando");
+      modelPromise = tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json")
+        .then((loaded) => {
+          model = loaded;
+          return loaded;
+        })
+        .catch((error) => {
+          modelPromise = null;
+          throw error;
+        });
+      return modelPromise;
+    }
+
+    function cameraSupported() {
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    }
+
+    /* ---------- Cámara ---------- */
+    async function startCamera() {
+      if (running) return;
+      hideError();
+
+      if (!cameraSupported()) {
+        showError("La cámara no está disponible. Abre la página desde HTTPS o localhost y permite el acceso a la cámara.");
+        return;
+      }
+
+      els.startBtn.disabled = true;
+      els.startBtn.textContent = "Cargando…";
+      els.uploadBtn.disabled = true;
+
+      try {
+        if (!model) setStatus("loading", "Cargando modelo…", "Cargando");
+        await ensureModel();
+        els.startBtn.textContent = "Activando…";
+        setStatus("loading", "Activando cámara…", "Cargando");
+
+        els.preview.hidden = true;
+        els.placeholder.hidden = true;
+        if (webcam) {
+          try { webcam.stop(); } catch (e) { /* noop */ }
+          webcam = null;
+        }
+
+        webcam = new tmImage.Webcam(480, 480, true);
+        await webcam.setup();
+        await webcam.play();
+
+        els.webcamContainer.innerHTML = "";
+        els.webcamContainer.appendChild(webcam.canvas);
+        els.webcamContainer.classList.add("visible");
+        els.cameraCard.classList.add("is-live");
+        els.liveChip.hidden = false;
+        els.liveChip.classList.remove("is-image");
+        els.liveChipText.textContent = "En vivo";
+
+        running = true;
+        lastPredict = 0;
+        resetPredictions();
+        els.startBtn.textContent = "Cámara activa";
+        els.stopBtn.disabled = false;
+        els.uploadBtn.disabled = false;
+        setStatus("live", "En vivo", "En vivo");
+        rafId = requestAnimationFrame(loop);
+      } catch (error) {
+        running = false;
+        if (webcam) {
+          try { webcam.stop(); } catch (e) { /* noop */ }
+          webcam = null;
+        }
+        els.webcamContainer.innerHTML = "";
+        els.cameraCard.classList.remove("is-live");
+        els.webcamContainer.classList.remove("visible");
+        els.liveChip.hidden = true;
+        els.preview.hidden = true;
+        els.placeholder.hidden = false;
+        els.startBtn.disabled = false;
+        els.startBtn.textContent = "Iniciar cámara";
+        els.stopBtn.disabled = true;
+        els.uploadBtn.disabled = false;
+        resetPredictions();
+        showError(error);
+      }
+    }
+
+    async function loop(timestamp) {
+      if (!running || !webcam) return;
+      webcam.update();
+
+      if (timestamp - lastPredict > 90) {
+        lastPredict = timestamp;
+        try {
+          if (model) {
+            const prediction = await model.predict(webcam.canvas);
+            if (running) updatePredictions(prediction);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      if (running) rafId = requestAnimationFrame(loop);
+    }
+
+    function stopCamera(showPlaceholder) {
+      running = false;
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      if (webcam) {
+        try { webcam.stop(); } catch (e) { /* noop */ }
+        webcam = null;
+      }
+      els.webcamContainer.innerHTML = "";
+      els.webcamContainer.classList.remove("visible");
+      els.cameraCard.classList.remove("is-live");
+      els.liveChip.hidden = true;
+      els.stopBtn.disabled = true;
+      els.startBtn.disabled = false;
+      els.startBtn.textContent = "Iniciar cámara";
+
+      if (showPlaceholder) {
+        els.preview.hidden = true;
+        els.placeholder.hidden = false;
+        setStatus("idle", "Cámara apagada", "Sin señal");
+        resetPredictions();
+      }
+    }
+
+    /* ---------- Subir imagen ---------- */
+    async function handleFile(file) {
+      if (!file) return;
+      hideError();
+      stopCamera(false);
+      resetPredictions();
+
+      els.preview.hidden = true;
+      els.placeholder.hidden = true;
+      els.webcamContainer.classList.remove("visible");
+      els.cameraCard.classList.remove("is-live");
+      els.liveChip.hidden = false;
+      els.liveChip.classList.add("is-image");
+      els.liveChipText.textContent = "Imagen";
+
+      setStatus("loading", "Analizando imagen…", "Analizando");
+      els.uploadBtn.disabled = true;
+      els.startBtn.disabled = true;
+
+      const objectUrl = URL.createObjectURL(file);
+      els.preview.src = objectUrl;
+      els.preview.hidden = false;
+
+      try {
+        if (els.preview.decode) {
+          await els.preview.decode();
+        } else if (!els.preview.complete) {
+          await new Promise((resolve, reject) => {
+            els.preview.onload = resolve;
+            els.preview.onerror = reject;
+          });
+        }
+        if (!model) setStatus("loading", "Cargando modelo…", "Cargando");
+        await ensureModel();
+        setStatus("loading", "Analizando imagen…", "Analizando");
+        const prediction = await model.predict(els.preview);
+        updatePredictions(prediction);
+        setStatus("image", "Imagen analizada", "Imagen");
+      } catch (error) {
+        showError(error);
+      } finally {
+        els.uploadBtn.disabled = false;
+        els.startBtn.disabled = false;
+        els.startBtn.textContent = "Iniciar cámara";
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+
+    /* ---------- Eventos ---------- */
+    els.startBtn.addEventListener("click", startCamera);
+    els.stopBtn.addEventListener("click", () => stopCamera(true));
+    els.uploadBtn.addEventListener("click", () => els.fileInput.click());
+    els.fileInput.addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = "";
+      handleFile(file);
+    });
+
+    buildTabs();
+    buildRows();
+    resetPredictions();
+    setStatus("idle", "Cámara apagada", "Sin señal");
+
+    ensureModel(true).catch((error) => {
+      console.warn("No se pudo precargar el modelo:", error);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clasificador de botellas - Teachable Machine</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    h1 { margin: 0; font-size: 22px; font-weight: 600; }
+    button {
+      padding: 10px 24px;
+      border: 0;
+      border-radius: 8px;
+      background: #3b82f6;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: #2563eb; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #status { font-size: 13px; color: #94a3b8; text-align: center; max-width: 420px; }
+    #webcam-container { width: 320px; }
+    #webcam-container canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 12px;
+      background: #000;
+    }
+    #label-container { width: 320px; display: flex; flex-direction: column; gap: 8px; }
+    .label-row {
+      padding: 8px 10px;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #1e293b;
+      font-size: 13px;
+    }
+    .label-row.top { border-color: #22c55e; background: #14301f; }
+    .label-text { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .bar { height: 5px; border-radius: 5px; background: #334155; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 5px; background: #3b82f6; }
+    .label-row.top .bar-fill { background: #22c55e; }
+  </style>
+</head>
+<body>
+  <h1>Clasificador de botellas</h1>
+  <button id="startButton" type="button" onclick="init()">Start</button>
+  <div id="status">Pulsa Start para cargar el modelo y activar la cámara.</div>
+  <div id="webcam-container"></div>
+  <div id="label-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+  <script type="text/javascript">
+    const MODEL_URL = "./my_model/";
+
+    let model, webcam, labelContainer, maxPredictions;
+    let running = false;
+    const statusEl = document.getElementById("status");
+    const startButton = document.getElementById("startButton");
+
+    function errorText(error) {
+      return error && error.message ? error.message : String(error);
+    }
+
+    async function init() {
+      if (running) return;
+
+      if (!window.navigator.mediaDevices || !window.navigator.mediaDevices.getUserMedia) {
+        statusEl.textContent = "La cámara no está disponible. Abre la página desde HTTPS o localhost " +
+          "y permite el acceso a la cámara.";
+        return;
+      }
+
+      startButton.disabled = true;
+      statusEl.textContent = "Cargando modelo...";
+
+      try {
+        const modelURL = MODEL_URL + "model.json";
+        const metadataURL = MODEL_URL + "metadata.json";
+
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+        statusEl.textContent = "Modelo cargado. Solicitando acceso a la cámara...";
+
+        const flip = true;
+        webcam = new tmImage.Webcam(200, 200, flip);
+        await webcam.setup();
+        await webcam.play();
+
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+
+        labelContainer = document.getElementById("label-container");
+        labelContainer.innerHTML = "";
+        for (let i = 0; i < maxPredictions; i++) {
+          labelContainer.appendChild(document.createElement("div"));
+        }
+
+        statusEl.textContent = "Clasificando en tiempo real...";
+        running = true;
+        window.requestAnimationFrame(loop);
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = "Error: " + errorText(error) +
+          ". Abre la página desde HTTPS o localhost y permite el acceso a la cámara.";
+        startButton.disabled = false;
+      }
+    }
+
+    async function loop() {
+      if (!running) return;
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      const prediction = await model.predict(webcam.canvas);
+      let top = prediction[0];
+      for (const p of prediction) {
+        if (p.probability > top.probability) top = p;
+      }
+
+      for (let i = 0; i < maxPredictions; i++) {
+        const p = prediction[i];
+        const percent = Math.round(p.probability * 100);
+        const row = labelContainer.childNodes[i];
+        row.className = "label-row" + (p.className === top.className ? " top" : "");
+        row.innerHTML =
+          '<div class="label-text"><span>' + p.className + '</span><span>' + percent + '%</span></div>' +
+          '<div class="bar"><div class="bar-fill" style="width:' + percent + '%"></div></div>';
+      }
+    }
+  </script>
+</body>
+</html>
